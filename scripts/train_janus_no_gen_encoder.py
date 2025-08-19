@@ -199,7 +199,7 @@ class SftDataset(Dataset):
             state_tokens = ""
             state_tokens += self.action_tokenizer(normalized_state)
 
-            prompts = input_img_tokens * img_len + x['input_prompt'] + state_tokens # First, place image tokens at the input end <img_encoder><img_gen>..
+            prompts = input_img_tokens * img_len + x['input_prompt'] + state_tokens
 
             conversation = [
                 {"role": "<|User|>","content": prompts},
@@ -252,7 +252,8 @@ def save_checkpoint(
     epoch: int,
     step: int,
     global_step: int,
-    is_last: bool = False
+    is_last: bool = False,
+    stats_data = None
 ) -> None:
 
     save_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}-{global_step}")
@@ -270,8 +271,15 @@ def save_checkpoint(
         model.save_pretrained(output_dir, state_dict=accelerator.get_state_dict(model))
         processor.save_pretrained(output_dir)
 
+        with open(os.path.join(save_dir, 'stats_data.json'), 'w') as f:
+            json.dump(stats_data, f, indent=2)
+            
+        logger.info(f"Statistics have been saved to {os.path.join(save_dir, 'stats_data.json')}")
+
     accelerator.wait_for_everyone()
     logger.info(f'Checkpoint {epoch}-{global_step} saved successfully')
+
+
 
 def train(args: argparse.Namespace) -> None:
 
@@ -362,6 +370,7 @@ def train(args: argparse.Namespace) -> None:
             image_tokens = info[2].detach().reshape(batch['pixel_values'].shape[0], -1)
             image_embeds = model.prepare_gen_img_embeds(image_tokens)
 
+            ### +2 means: <image start token> and <prompt end token>
             action_tokens = batch['input_ids'][:, -(image_embeds.shape[1]+2+args.action_dim) : -(image_embeds.shape[1]+2)]
 
             # torch.set_printoptions(threshold=10_000)
@@ -406,7 +415,6 @@ def train(args: argparse.Namespace) -> None:
             
             inputs_embeds[:, -image_embeds.shape[1]:,:] = image_embeds
 
-
             # forward and calculate loss
             outputs = model.language_model.model(
                 inputs_embeds=inputs_embeds,
@@ -427,14 +435,14 @@ def train(args: argparse.Namespace) -> None:
             metric(image_logits, image_tokens, image_loss, action_logits, action_tokens, action_loss)
 
             # Backpropagation
-            loss = image_loss # action_loss + 
+            loss = 0.5 * image_loss + 0.5 * action_loss 
             accelerator.backward(loss)
 
-            # Add gradient clipping
-            if args.max_grad_norm > 0:
-                accelerator.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-
             if (global_step + 1) % accelerator.gradient_accumulation_steps == 0:
+                # Add gradient clipping
+                if args.max_grad_norm > 0:
+                    accelerator.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
@@ -477,7 +485,8 @@ def train(args: argparse.Namespace) -> None:
                 epoch=epoch,
                 step=global_step-1,
                 global_step=global_step,
-                is_last=True
+                is_last=True,
+                stats_data = train_dataset.stats_data,
             )
 
 if __name__ == '__main__':

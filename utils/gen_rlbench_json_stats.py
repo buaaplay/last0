@@ -3,6 +3,44 @@ from PIL import Image
 import json
 import os
 import re
+from scipy.spatial.transform import Rotation as R
+
+def unique_euler_xyz_rad(angles, range_style="2pi"):
+    """
+    输入: 欧拉角 (xyz 顺序)，弧度制 (任意范围, 可正可负, 可超过 2π)
+    输出: 欧拉角 (xyz 顺序)，弧度制，严格唯一表示
+
+    参数:
+        precision: 保留小数位数
+        range_style: "negpi" -> (-π, π], "2pi" -> [0, 2π)
+    """
+    # 输入是弧度
+    rot = R.from_euler('xyz', angles, degrees=False)
+    
+    # 转回 xyz (弧度制)
+    euler = rot.as_euler('xyz', degrees=False)
+    
+    # wrap 到 (-π, π]
+    euler = (euler + np.pi) % (2 * np.pi) - np.pi
+    
+    # 约束: y ∈ [-π/2, π/2]
+    if euler[1] > np.pi/2:
+        euler[1] = np.pi - euler[1]
+        euler[0] += np.pi
+        euler[2] += np.pi
+    elif euler[1] < -np.pi/2:
+        euler[1] = -np.pi - euler[1]
+        euler[0] += np.pi
+        euler[2] += np.pi
+    
+    # 再 wrap 一次
+    euler = (euler + np.pi) % (2 * np.pi) - np.pi
+    
+    # 如果要求 [0, 2π)，再转换
+    if range_style == "2pi":
+        euler = euler % (2 * np.pi)
+    
+    return euler
 
 def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
     with open(jsonl_filename, 'w') as f:
@@ -82,6 +120,9 @@ def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
                         delta_position_6 + delta_position_7 + delta_position_8       
                     
                     action_7d = np.concatenate([delta_position_total, abs_rot_8, [gripper_8]]).tolist()
+
+                    action_7d[3:6] = unique_euler_xyz_rad(action_7d[3:6])
+                    step['state'][3:6] = unique_euler_xyz_rad(step['state'][3:6])
 
                     # Create dictionary for this step
                     episode_data = {
@@ -179,9 +220,9 @@ def cal_stats(jsonl_filename):
 
 ######## ---------main---------- #########
 
-data_root = "/media/chenhao/data/keyframe_fast_slow_chunk8_addlast_0806/for_rlds"
-img_save_root = "/media/chenhao/double_rl/training_data/rlbench"
-json_save_root = "/media/chenhao/double_rl/training_data/json"
+data_root = "/gpfs/0607-cluster/chenhao/data/rlbench/keyframe_fast_slow_chunk8_addlast_0806/for_rlds"
+img_save_root = "/gpfs/0607-cluster/chenhao/DoubleRL-VLA/training_data/rlbench"
+json_save_root = "/gpfs/0607-cluster/chenhao/DoubleRL-VLA/training_data/json"
 jsonl_filename = f'{json_save_root}/4tasks_train.jsonl'
 json_file = f'{json_save_root}/4tasks_train.json'
 

@@ -1,19 +1,19 @@
-source /media/miniconda3/bin/activate /media/miniconda3/envs/double_rl
-export COPPELIASIM_ROOT=/media/Programs/CoppeliaSim
+source /gpfs/0607-cluster/miniconda3/bin/activate /gpfs/0607-cluster/miniconda3/envs/double_rl
+export COPPELIASIM_ROOT=/gpfs/0607-cluster/chenhao/Programs/CoppeliaSim
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$COPPELIASIM_ROOT
 export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
 # export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libffi.so.7  ## for our machine
-export PATH=/media/miniconda3/envs/double_rl/bin:$PATH
-export HF_HOME=/media/huggingface
-export PYTHONPATH=/media/chenhao/double_rl/LIFT3D:/media/chenhao/double_rl:$PYTHONPATH
+export PATH=/gpfs/0607-cluster/miniconda3/envs/double_rl/bin:$PATH
+export HF_HOME=/gpfs/0607-cluster/HuggingFace
+export PYTHONPATH=/gpfs/0607-cluster/chenhao/DoubleRL-VLA:$PYTHONPATH
 
 # export CUDA_VISIBLE_DEVICES=4,5,6,7
 
-N=0
+N=1
 Xvfb :$N -screen 0 1024x768x24 &
 export DISPLAY=:$N
 
-models=("/media/chenhao/double_rl/exp/action_image/janus_pro_1e-4/checkpoint-29-6720/tfmr")
+models=("/gpfs/0607-cluster/chenhao/DoubleRL-VLA/exp/action_image/janus_pro_no_gen_encoder_7B_lr_1e-4_weightdecay_0/checkpoint-29-6720/tfmr")
 # tasks=("close_box" "close_laptop_lid")
 # tasks=("toilet_seat_down" "sweep_to_dustpan")
 # tasks=("close_fridge" "place_wine_at_rack_location")
@@ -22,10 +22,12 @@ models=("/media/chenhao/double_rl/exp/action_image/janus_pro_1e-4/checkpoint-29-
 
 tasks=("close_box" "close_laptop_lid" "sweep_to_dustpan" "phone_on_base")
 
+# tasks=("close_box")
+
 for model in "${models[@]}"; do
   exp_name=$(echo "$model" | awk -F'/' '{print $(NF-3)"_"$(NF-2)"_"$(NF-1)}')
   for task in "${tasks[@]}"; do
-    python /media/chenhao/double_rl/scripts/test_rlbench.py \
+    python /gpfs/0607-cluster/chenhao/DoubleRL-VLA/scripts/test_rlbench_no_gen_encoder.py \
       --model-path ${model} \
       --task-name ${task} \
       --exp-name ${exp_name} \
@@ -37,7 +39,7 @@ for model in "${models[@]}"; do
       --num-episodes 20 \
       --load-pointcloud 0 \
       --dataset-name 'rlbench' \
-      --result-dir /media/chenhao/test_result/ch_test_0814 \
+      --result-dir /gpfs/0607-cluster/chenhao/test_results/ch_test_0819 \
       --action-chunk 1
   done
 done
