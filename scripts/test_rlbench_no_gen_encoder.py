@@ -394,7 +394,7 @@ def main(args):
                 task_description = env.text
                 robot_state = obs_dict['robot_state']
                 robot_state = EEpose.pose_7DoF_to_6DoF(robot_state[7:14])
-                robot_state = np.concatenate([robot_state, np.array([1])])
+                robot_state = np.concatenate([robot_state, np.array([gripper_open])]) if gripper_open != None else np.concatenate([robot_state, np.array([1])])
                 robot_state[3:6] = unique_euler_xyz_rad(robot_state[3:6])
                 cur_robot_state = robot_state if args.use_robot_state else None
 

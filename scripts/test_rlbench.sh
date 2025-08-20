@@ -9,11 +9,11 @@ export PYTHONPATH=/gpfs/0607-cluster/chenhao/DoubleRL-VLA:$PYTHONPATH
 
 # export CUDA_VISIBLE_DEVICES=4,5,6,7
 
-N=1
+N=0
 Xvfb :$N -screen 0 1024x768x24 &
 export DISPLAY=:$N
 
-models=("/gpfs/0607-cluster/chenhao/DoubleRL-VLA/exp/action_image/janus_pro_two_vis_7B_lr_1e-4_weightdecay_0/checkpoint-29-6720/tfmr")
+models=("/gpfs/0607-cluster/chenhao/DoubleRL-VLA/exp/action_image/janus_pro_lr_1e-4_weightdecay_0/checkpoint-29-6720/tfmr")
 # tasks=("close_box" "close_laptop_lid")
 # tasks=("toilet_seat_down" "sweep_to_dustpan")
 # tasks=("close_fridge" "place_wine_at_rack_location")
@@ -27,7 +27,7 @@ tasks=("close_box" "close_laptop_lid" "sweep_to_dustpan" "phone_on_base")
 for model in "${models[@]}"; do
   exp_name=$(echo "$model" | awk -F'/' '{print $(NF-3)"_"$(NF-2)"_"$(NF-1)}')
   for task in "${tasks[@]}"; do
-    python /gpfs/0607-cluster/chenhao/DoubleRL-VLA/scripts/test_rlbench_two_vis_encoder.py \
+    python /gpfs/0607-cluster/chenhao/DoubleRL-VLA/scripts/test_rlbench_no_siglip_encoder.py \
       --model-path ${model} \
       --task-name ${task} \
       --exp-name ${exp_name} \
@@ -39,7 +39,7 @@ for model in "${models[@]}"; do
       --num-episodes 20 \
       --load-pointcloud 0 \
       --dataset-name 'rlbench' \
-      --result-dir /gpfs/0607-cluster/chenhao/test_results/ch_test_0819 \
+      --result-dir /gpfs/0607-cluster/chenhao/test_results/ch_test_0820 \
       --action-chunk 1
   done
 done
