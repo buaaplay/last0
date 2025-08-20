@@ -186,18 +186,18 @@ class SftDataset(Dataset):
                 np.clip(2 * (action - self.action_min) / (self.action_max - self.action_min + 1e-8) - 1, -1, 1),
                 action
             )
-
-            state = np.array(x['state'], dtype=np.float32)
-            normalized_state = np.where(
-                self.state_mask,
-                np.clip(2 * (state - self.state_min) / (self.state_max - self.state_min + 1e-8) - 1, -1, 1),
-                state
-            )
-
             action_tokens = ""
             action_tokens += self.action_tokenizer(normalized_action)
+
             state_tokens = ""
-            state_tokens += self.action_tokenizer(normalized_state)
+            if self.config.robot_state:
+                state = np.array(x['state'], dtype=np.float32)
+                normalized_state = np.where(
+                    self.state_mask,
+                    np.clip(2 * (state - self.state_min) / (self.state_max - self.state_min + 1e-8) - 1, -1, 1),
+                    state
+                )
+                state_tokens += self.action_tokenizer(normalized_state)
 
             prompts = input_img_tokens * img_len + x['input_prompt'] + state_tokens # First, place image tokens at the input end <img_encoder><img_gen>..
 
@@ -504,6 +504,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_ckpts', type=int, default=5, help='Maximum number of checkpoints to save')
     parser.add_argument('--log_dir', type=str, default='./train_logs', help='Log save path')
     parser.add_argument('--action_dim', type=int, default=7, help='action dim')
+    parser.add_argument('--robot_state', action='store_true', default=False, help='enable robot state')
 
     # Training related
     parser.add_argument('--max_seq_len', type=int, default=4096, help='Maximum sequence length')

@@ -109,14 +109,16 @@ def model_predict(args, vl_gpt, vl_chat_processor, action_tokenizer, statistic, 
     img_size = 384
     patch_size = 16
 
-    state = np.array(state, dtype=np.float32)
-    normalized_state = np.where(
-        statistic['state_mask'],
-        np.clip(2 * (state - statistic['state_min']) / (statistic['state_max'] - statistic['state_min'] + 1e-8) - 1, -1, 1),
-        state
-    )
     state_tokens = ""
-    state_tokens += action_tokenizer(normalized_state)
+    if args.robot_state:
+        state = np.array(state, dtype=np.float32)
+        normalized_state = np.where(
+            statistic['state_mask'],
+            np.clip(2 * (state - statistic['state_min']) / (statistic['state_max'] - statistic['state_min'] + 1e-8) - 1, -1, 1),
+            state
+        )
+        state_tokens += action_tokenizer(normalized_state)
+
 
 
     input_img_tokens_1 = vl_chat_processor.image_start_tag + vl_chat_processor.image_tag*vl_chat_processor.num_image_tokens +vl_chat_processor.image_end_tag

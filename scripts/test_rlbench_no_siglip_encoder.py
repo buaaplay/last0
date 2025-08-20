@@ -109,15 +109,15 @@ def model_predict(args, vl_gpt, vl_chat_processor, action_tokenizer, statistic, 
     img_size = 384
     patch_size = 16
 
-
-    state = np.array(state, dtype=np.float32)
-    normalized_state = np.where(
-        statistic['state_mask'],
-        np.clip(2 * (state - statistic['state_min']) / (statistic['state_max'] - statistic['state_min'] + 1e-8) - 1, -1, 1),
-        state
-    )
     state_tokens = ""
-    state_tokens += action_tokenizer(normalized_state)
+    if args.robot_state:
+        state = np.array(state, dtype=np.float32)
+        normalized_state = np.where(
+            statistic['state_mask'],
+            np.clip(2 * (state - statistic['state_min']) / (statistic['state_max'] - statistic['state_min'] + 1e-8) - 1, -1, 1),
+            state
+        )
+        state_tokens += action_tokenizer(normalized_state)
 
 
     input_img_tokens_1 = vl_chat_processor.image_start_tag + vl_chat_processor.image_tag*vl_chat_processor.num_image_tokens +vl_chat_processor.image_end_tag
@@ -153,8 +153,8 @@ def model_predict(args, vl_gpt, vl_chat_processor, action_tokenizer, statistic, 
         #     pre_data.append(VLChatProcessorOutput(sft_format=sft_format, pixel_values=input_image_pixel_values, input_ids=tokens[i], num_image_tokens=[vl_chat_processor.num_image_tokens] * img_len))
         # prepare_inputs = vl_chat_processor.batchify(pre_data)
         
-        # torch.set_printoptions(threshold=10_000)
-        # print(tokens)
+        torch.set_printoptions(threshold=10_000)
+        print(tokens)
 
         # inputs_embeds = vl_gpt.prepare_inputs_embeds(
         #             input_ids=tokens.to(device),
@@ -162,7 +162,7 @@ def model_predict(args, vl_gpt, vl_chat_processor, action_tokenizer, statistic, 
         #             images_emb_mask=prepare_inputs['images_emb_mask'].to(device),
         #             images_seq_mask=prepare_inputs['images_seq_mask'].to(device)
         #         )
- 
+
         tokens[tokens < 0] = 0  # ignore the image embeddings
         inputs_embeds = vl_gpt.language_model.get_input_embeddings()(tokens)
 
@@ -462,5 +462,6 @@ if __name__ == '__main__':
     parser.add_argument('--use_robot_state', type=int, default=1)
     parser.add_argument('--load-pointcloud', type=int, default=0)
     parser.add_argument('--action-chunk', type=int, default=1)
+    parser.add_argument('--robot_state', action='store_true', default=False, help='enable robot state')
     parser.add_argument('--replay_data_dir', type=str, default='/gpfs/0607-cluster/chenhao/data/rlbench/keyframe_fast_slow_chunk8_addlast_0806/for_rlds')
     main(parser.parse_args())

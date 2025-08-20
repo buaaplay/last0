@@ -13,7 +13,7 @@ N=0
 Xvfb :$N -screen 0 1024x768x24 &
 export DISPLAY=:$N
 
-models=("/gpfs/0607-cluster/chenhao/DoubleRL-VLA/exp/action_image/janus_pro_lr_1e-4_weightdecay_0/checkpoint-29-6720/tfmr")
+models=("/gpfs/0607-cluster/chenhao/DoubleRL-VLA/exp/action_image/janus_pro_no_siglip_encoder_7B_no_state_lr_1e-4_weightdecay_0/checkpoint-29-6720/tfmr")
 # tasks=("close_box" "close_laptop_lid")
 # tasks=("toilet_seat_down" "sweep_to_dustpan")
 # tasks=("close_fridge" "place_wine_at_rack_location")
