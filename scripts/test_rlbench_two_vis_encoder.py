@@ -152,8 +152,8 @@ def model_predict(args, vl_gpt, vl_chat_processor, action_tokenizer, statistic, 
             pre_data.append(VLChatProcessorOutput(sft_format=sft_format, pixel_values=input_image_pixel_values, input_ids=tokens[i], num_image_tokens=[vl_chat_processor.num_image_tokens] * img_len))
         prepare_inputs = vl_chat_processor.batchify(pre_data)
         
-        # torch.set_printoptions(threshold=10_000)
-        # print(tokens)
+        torch.set_printoptions(threshold=10_000)
+        print(tokens)
 
         inputs_embeds = vl_gpt.prepare_inputs_embeds(
                     input_ids=tokens.to(device),
@@ -364,6 +364,7 @@ def main(args):
         obs_dict = env.reset()
         terminated = False
         success = False
+        gripper_open = None
         
         for j in range(episode_length):
             
@@ -400,7 +401,7 @@ def main(args):
                 task_description = env.text
                 robot_state = obs_dict['robot_state']
                 robot_state = EEpose.pose_7DoF_to_6DoF(robot_state[7:14])
-                robot_state = np.concatenate([robot_state, np.array([1])])
+                robot_state = np.concatenate([robot_state, np.array([gripper_open])]) if gripper_open != None else np.concatenate([robot_state, np.array([1])])
                 robot_state[3:6] = unique_euler_xyz_rad(robot_state[3:6])
                 cur_robot_state = robot_state if args.use_robot_state else None
 

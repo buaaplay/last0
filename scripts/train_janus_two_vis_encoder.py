@@ -379,8 +379,8 @@ def train(args: argparse.Namespace) -> None:
                 image_tokens_input = info_input[2].detach().reshape(batch['input_pixel_values'].shape[0], -1)
                 image_embeds_input = model.prepare_gen_img_embeds(image_tokens_input)
 
-                # torch.set_printoptions(threshold=10_000)
-                # print(batch['input_ids'])
+                torch.set_printoptions(threshold=10_000)
+                print(batch['input_ids'])
                 # print(batch['input_ids'].shape, batch['images_emb_mask'].shape, batch['images_seq_mask'].shape)
                 # print(batch['images_emb_mask'])
                 # print(batch['images_seq_mask'])

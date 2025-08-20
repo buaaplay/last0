@@ -10,10 +10,10 @@ export PYTHONPATH=/gpfs/0607-cluster/chenhao/DoubleRL-VLA:$PYTHONPATH
 # export CUDA_VISIBLE_DEVICES=4,5,6,7
 
 accelerate launch --config_file ../config/sft.yaml \
-    --num_processes 8  \
+    --num_processes 1  \
     --num_machines 1 \
     --machine_rank 0 \
-    --deepspeed_multinode_launcher standard train_janus.py \
+    --deepspeed_multinode_launcher standard train_janus_two_vis_encoder.py \
     --model_path deepseek-ai/Janus-Pro-7B \
     --data_path ../training_data/json/4tasks_train.json \
     --n_epochs 30 \
