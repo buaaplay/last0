@@ -251,6 +251,7 @@ class LlamaAttention(nn.Module):
         attention_mask: Optional[torch.Tensor],
         past_key_value: Optional[Cache] = None,
         cache_position: Optional[torch.LongTensor] = None,
+        output_attentions: bool = False,
         **kwargs: Unpack[FlashAttentionKwargs],
     ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[tuple[torch.Tensor]]]:
         input_shape = hidden_states.shape[:-1]
@@ -300,6 +301,7 @@ class LlamaAttention(nn.Module):
             scaling=self.scaling,
             **kwargs,
         )
+
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
 
         latent_hidden = attn_output[:, latent_indexes]
@@ -425,7 +427,6 @@ class LlamaModel(LlamaPreTrainedModel):
         self.vocab_size = config.vocab_size
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
-        self.embed_tokens_action = nn.Embedding(259, config.hidden_size, self.padding_idx)
 
         self.layers = nn.ModuleList(
             [LlamaDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
@@ -443,12 +444,6 @@ class LlamaModel(LlamaPreTrainedModel):
 
     def set_input_embeddings(self, value):
         self.embed_tokens = value
-
-    def get_input_embeddings_action(self):
-        return self.embed_tokens_action
-
-    def set_input_embeddings_action(self, value):
-        self.embed_tokens_action = value
 
     @can_return_tuple
     @auto_docstring
@@ -577,7 +572,6 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         self.model = LlamaModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        self.lm_head_action = nn.Linear(config.hidden_size, 259, bias=False)
         
         # Initialize weights and apply final processing
         self.post_init()
@@ -593,18 +587,6 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
 
     def set_output_embeddings(self, new_embeddings):
         self.lm_head = new_embeddings
-
-    def get_input_embeddings_action(self):
-        return self.model.embed_tokens_action
-
-    def set_input_embeddings_action(self, value):
-        self.model.embed_tokens_action = value
-
-    def get_output_embeddings(self):
-        return self.lm_head_action
-
-    def set_output_embeddings(self, new_embeddings):
-        self.lm_head_action = new_embeddings
 
     def set_decoder(self, decoder):
         self.model = decoder

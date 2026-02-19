@@ -242,10 +242,6 @@ class VLChatProcessor(ProcessorMixin):
     @property
     def pad_id(self):
         pad_id = self.tokenizer.vocab.get(self.pad_tag)
-        # pad_id = self.tokenizer.pad_token_id
-        # if pad_id is None:
-        #     pad_id = self.tokenizer.eos_token_id
-
         return pad_id
 
     def add_image_token(

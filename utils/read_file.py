@@ -10,8 +10,6 @@ import json
 
 # print(data[0])
 
-
-
 # # ######---------------  npy
 # episode = np.load("/gpfs/0607-cluster/chenhao/data/rlbench/keyframe_fast_slow_chunk8_addlast_0806/for_rlds/close_box/episode1.npy", allow_pickle=True)
 
