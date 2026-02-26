@@ -47,41 +47,6 @@ def sdpa_attention_forward(
         key = repeat_kv(key, module.num_key_value_groups)
         value = repeat_kv(value, module.num_key_value_groups)
 
-# # # ---------ch changed----------- # 
-#     assert "use_latent" in kwargs
-#     if kwargs['use_latent']:
-#         if module.training:
-#             q_length = query.shape[-2]
-#             kv_length = key.shape[-2]
-#             if attention_mask is None:
-#                 attention_mask = build_causal_mask(q_length, kv_length, kv_offset=0, device=query.device)
-
-#             assert 'latent_indexes' in kwargs
-#             latent_indexes = kwargs['latent_indexes']
-
-#             if len(latent_indexes) > 0:
-#                 last_latent_idx = latent_indexes[-1].item() if isinstance(latent_indexes, torch.Tensor) else latent_indexes[-1]
-#                 col_start_idx = max(0, last_latent_idx - 4 -1)
-#                 row_start_idx = last_latent_idx + 1
-#                 if row_start_idx < q_length and col_start_idx < kv_length:
-#                     attention_mask[:, :, row_start_idx:, col_start_idx:last_latent_idx] = False
-        
-#         else:
-#             q_length = query.shape[-2]
-#             kv_length = key.shape[-2]
-#             if attention_mask is None:
-#                 attention_mask = build_causal_mask(q_length, kv_length, kv_offset=kv_length-q_length, device=query.device)
-            
-#             assert 'latent_indexes' in kwargs
-#             latent_indexes = kwargs['latent_indexes']
-            
-#             if len(latent_indexes)==0:
-#                 assert 'action_condition_len' in kwargs
-#                 action_condition_len = kwargs['action_condition_len']
-#                 attention_mask[:, :, :, action_condition_len:action_condition_len+4+1] = False
-
-# # # ---------ch changed----------- # 
-
     if attention_mask is not None and attention_mask.ndim == 4:
         attention_mask = attention_mask[:, :, :, : key.shape[-2]]
 

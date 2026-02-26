@@ -33,7 +33,6 @@ from transformers.cache_utils import DynamicCache
 from janus.models.clip_encoder import CLIPVisionTower
 from janus.models.projector import MlpProjector
 from janus.diffusion import ActionEmbedder, TimestepEmbedder, FinalLayer
-from janus.diffusion import create_diffusion
 from janus.uni3d import Uni3D
 import torch.nn as nn
 
@@ -222,17 +221,14 @@ class MultiModalityPreTrainedModel(PreTrainedModel):
 class MultiModalityCausalLM(MultiModalityPreTrainedModel):
     def __init__(self, config: MultiModalityConfig,
                 action_dim = None,
-                diff = False,
                 flow = False,
                 use_latent = True,
                 robot_state = False,
                 use_pointcloud = False,
                 fast_and_slow = False,
                 fast_image_num = 3,
-                diffusion_steps = 100,
             ):
         super().__init__(config)
-        self.diff = diff
         self.flow = flow
         self.use_pointcloud = use_pointcloud
         self.fast_and_slow = fast_and_slow
@@ -275,16 +271,6 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
             if key not in self.config.__dict__:
                 setattr(self.config, key, value)
 
-        ###-------  diff  -------###
-        if self.diff:
-            self.x_embedder = ActionEmbedder(action_size=action_dim, hidden_size=language_config.hidden_size)
-            self.t_embedder = TimestepEmbedder(language_config.hidden_size)
-            self.final_layer = FinalLayer(language_config.hidden_size, action_dim)
-            self.ddim_diffusion = None
-            self.diffusion_steps = diffusion_steps
-            self.diffusion = create_diffusion(timestep_respacing="", noise_schedule = 'squaredcos_cap_v2', diffusion_steps=self.diffusion_steps, sigma_small=True, learn_sigma = False)
-
-        ###-------  flow  -------###
         if self.flow:
             self.x_embedder = ActionEmbedder(action_size=action_dim, hidden_size=language_config.hidden_size)
             if self.robot_state:
@@ -328,15 +314,6 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
 
         self.apply(_basic_init)
 
-    def create_ddim(self, ddim_step=10, noise_schedule = 'squaredcos_cap_v2', diffusion_steps = 100):
-        self.ddim_diffusion = create_diffusion(timestep_respacing = "ddim"+str(ddim_step), 
-                                               noise_schedule = noise_schedule,
-                                               diffusion_steps = diffusion_steps, 
-                                               sigma_small = True, 
-                                               learn_sigma = False
-                                               )
-        return self.ddim_diffusion
-
     def load_encoder_to_pointcloud_embedder(self, ckpt_path):
         print(f"=> Loading Uni3D checkpoint from {ckpt_path}")
         checkpoint = torch.load(ckpt_path, map_location='cpu')
@@ -369,50 +346,6 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
             print(f"! Missed ({len(missing)}): {missing[:3]}...")
         if unexpected:
             print(f"! Unexpected ({len(unexpected)}): {unexpected[:3]}...")
-    
-    def forward_diff(self, noise, timestep, past_key_values, inputs_embeds):
-        noisy_actions = self.x_embedder(noise.to(torch.bfloat16))
-        timesteps = self.t_embedder(timestep).unsqueeze(1)
-
-        # print("denoise")
-        # print("before: ", inputs_embeds.shape)
-
-        if past_key_values is None:
-            inputs_embeds = torch.cat([
-                inputs_embeds,
-                timesteps,
-                noisy_actions,
-            ], dim=1)
-            if not self.fast_and_slow:
-                latent_indexes=torch.arange(0, inputs_embeds.shape[1]-3).to(inputs_embeds.device)
-                action_indexes=torch.arange(inputs_embeds.shape[1]-3, inputs_embeds.shape[1]).to(inputs_embeds.device)
-            else:
-                latent_indexes=torch.arange(0, inputs_embeds.shape[1] - 3 - 578 * self.fast_image_num).to(inputs_embeds.device)
-                action_indexes=torch.arange(inputs_embeds.shape[1] - 3 - 578 * self.fast_image_num, inputs_embeds.shape[1]).to(inputs_embeds.device)
-        else:
-            inputs_embeds = torch.cat([timesteps, noisy_actions], dim=1)
-            past_key_values = tuple(
-                (k[:, :, :-(timesteps.shape[1]+noisy_actions.shape[1]), :], v[:, :, :-(timesteps.shape[1]+noisy_actions.shape[1]), :]) for k, v in past_key_values
-            )
-            past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-            latent_indexes=torch.arange(0, 0).to(inputs_embeds.device)
-            action_indexes=torch.arange(0, inputs_embeds.shape[1]).to(inputs_embeds.device)
-
-        # print("after: ", inputs_embeds.shape)
-        # input()
-
-        outputs = self.language_model.model(
-            inputs_embeds=inputs_embeds,
-            past_key_values=past_key_values,
-            latent_indexes=latent_indexes,
-            action_indexes=action_indexes,
-            use_latent=True,
-            return_dict=True,
-            use_cache=True
-        )
-        hidden_states = outputs.last_hidden_state
-        predicted_noise = self.final_layer(hidden_states)[:, -noisy_actions.shape[1]:, :]
-        return outputs, predicted_noise
 
     def denoise_step(self, inputs_embeds, past_key_values, x_t, timestep):
         noisy_actions = self.x_embedder(x_t.to(torch.bfloat16))
@@ -428,15 +361,6 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
                 latent_indexes=torch.arange(0, inputs_embeds.shape[1]-3).to(inputs_embeds.device)
                 action_indexes=torch.arange(inputs_embeds.shape[1]-3, inputs_embeds.shape[1]).to(inputs_embeds.device)
             else:
-                # seq_len = inputs_embeds.shape[1]
-                # expected_min_len = 3 + 578 * self.fast_image_num
-                # print(f"DEBUG: seq_len={seq_len}, fast_image_num={self.fast_image_num}")
-                # print(f"DEBUG: Calculation: {seq_len} - 3 - 578 * {self.fast_image_num} = {seq_len - expected_min_len}")
-
-                # if seq_len <= expected_min_len:
-                #     print("!!! ERROR: input_embeds is too short for the specified number of images !!!")
-                # input()
-            
                 latent_indexes=torch.arange(0, inputs_embeds.shape[1] - 3 - 578 * self.fast_image_num).to(inputs_embeds.device)
                 action_indexes=torch.arange(inputs_embeds.shape[1] - 3 - 578 * self.fast_image_num, inputs_embeds.shape[1]).to(inputs_embeds.device)
         else:
@@ -524,10 +448,9 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
             time += dt
         return x_t
     
-
     def initialize_weights(self):
-        if self.diff or self.flow:
-            print("init!!!")
+        if self.flow:
+            print("init flow components!!!")
             nn.init.normal_(self.x_embedder.mlp.fc1.weight, std=0.02)
             nn.init.normal_(self.x_embedder.mlp.fc2.weight, std=0.02)
             nn.init.constant_(self.x_embedder.mlp.fc1.bias, 0)

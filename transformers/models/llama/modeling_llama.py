@@ -176,9 +176,7 @@ def eager_attention_forward(
 ):
     key_states = repeat_kv(key, module.num_key_value_groups)
     value_states = repeat_kv(value, module.num_key_value_groups)
-    # print(key_states.shape, query.shape, value_states.shape, attention_mask.shape)
 
-    ##### ---------ch changed----------- #####
     batch_size, num_heads, q_length, head_dim = query.shape
     kv_length = key.shape[-2]
     if attention_mask is None:
@@ -188,8 +186,6 @@ def eager_attention_forward(
         attention_mask = torch.zeros_like(causal_mask, dtype=query.dtype)
         attention_mask = attention_mask.masked_fill(~causal_mask, float('-inf'))
         attention_mask = attention_mask.expand(batch_size, num_heads, q_length, kv_length)
-
-    ##### ---------ch changed----------- #####
 
     attn_weights = torch.matmul(query, key_states.transpose(2, 3)) * scaling
     if attention_mask is not None:

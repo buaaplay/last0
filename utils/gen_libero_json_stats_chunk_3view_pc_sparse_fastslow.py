@@ -11,7 +11,7 @@ IMAGE_VIEWS_FAST = ['image_wrist']
 FUTURE_STEPS = 4
 FAST_SLOW_RATIO = 1
 LATENT_STRIDE = 8
-ACTION_CHUNK = 16
+ACTION_CHUNK = 32
 
 
 def create_padding_assets(save_dir, sample_step):
@@ -258,12 +258,12 @@ data_root = "/media/liuzhuoyang/data/libero/npy"
 img_save_root = "/media/liuzhuoyang/LCoT_VLA_MOT/training_data/libero_two_sparse_fastslow"
 json_save_root = "/media/liuzhuoyang/LCoT_VLA_MOT/training_data/libero_two_json"
 
-jsonl_filename = f'{json_save_root}/libero_object_no_noops_view2_chunk4_16_stride8_fast1_sparse_fastslow_train.jsonl'
-json_file = f'{json_save_root}/libero_object_no_noops_view2_chunk4_16_stride8_fast1_sparse_fastslow_train.json'
+jsonl_filename = f'{json_save_root}/libero_10_no_noops_view2_chunk4_32_stride8_fast1_sparse_fastslow_train.jsonl'
+json_file = f'{json_save_root}/libero_10_no_noops_view2_chunk4_32_stride8_fast1_sparse_fastslow_train.json'
 task_lists = [
-#   'libero_10_no_noops',
+  'libero_10_no_noops',
 #   'libero_goal_no_noops',
-  'libero_object_no_noops',
+#   'libero_object_no_noops',
 #   'libero_spatial_no_noops'
 ]
 

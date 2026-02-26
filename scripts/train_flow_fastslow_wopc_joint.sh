@@ -13,13 +13,13 @@ export WANDB_MODE=offline
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 # BASE_RUN_NAME="janus_pro_siglip_uni3d_1B_1e-4_mot_pretrain1220e5_libero_spatial_joint_chunk8_stride8_view1+1_wrist_sparse_slow1_fast1_state_8_0120"
-BASE_RUN_NAME="janus_pro_siglip_uni3d_1B_1e-4_mot_pretrain0123e0_libero_spatial_joint_chunk16_stride8_view1+1_wrist_slow1_fast1_state_8_oneshot_0212"
+BASE_RUN_NAME="janus_pro_siglip_uni3d_1B_1e-4_mot_pretrain0123e0_libero_10_joint_chunk32_stride8_view1+1_wrist_slow1_fast1_state_8_oneshot_0220"
 EXPERIMENT_NAME="latent_cot_mot_flow_libero"
 OUTPUT_ROOT_DIR="../exp"
 
-DATA_JSON="/media/liuzhuoyang/last0_qwen/training_data/libero_two_json/libero_spatial_no_noops_view2_chunk4_16_stride8_fast1_sparse_fastslow_1shot_train.json"
+DATA_JSON="/media/liuzhuoyang/LCoT_VLA_MOT/training_data/libero_two_json/libero_10_no_noops_view2_chunk4_32_stride8_fast1_sparse_fastslow_train.json"
 ORIGIN_MODEL_PATH="/media/liuzhuoyang/LCoT_VLA/Janus-Pro-1B"
-ACTION_MODEL_PATH="/media/liuzhuoyang/LCoT_VLA/exp_pretrain/action_only_flow/janus_pro_siglip_encoder_1B_no_state_lr_2e-5_flow_chunk16_0208/checkpoint-0-800000/tfmr"
+ACTION_MODEL_PATH="/media/liuzhuoyang/LCoT_VLA/exp_pretrain/action_only_flow/janus_pro_siglip_encoder_1B_no_state_lr_2e-5_flow_chunk32_0216/checkpoint-0-1106069/tfmr"
 PC_EMBEDDER_CKPT="/media/liuzhuoyang/Uni3D/checkpoints/modelzoo/uni3d-b/model.pt"
 
 NUM_PROCESSES=8
@@ -51,7 +51,7 @@ accelerate launch --config_file ../config/sft.yaml \
     --load_action_from_latent 0 \
     --load_action_from_pretrain 1 \
     --freeze_latent 0 \
-    --action_chunk 16 \
+    --action_chunk 32 \
     --use_latent 1 \
     --latent_size 8 \
     --compress_strategy average \
