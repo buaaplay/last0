@@ -11,7 +11,7 @@ Zhuoyang Liu, Jiaming Liu, Hao Chen, Jiale Yu, Ziyu Guo, Chengkai Hou, Chenyang 
 
 </div>
 
-![](assets/teaser.png)
+![](asset/method.png)
 **🤖LaST​<sub>0</sub>​ is a framework that enables efficient reasoning before acting through a Latent Spatio-Temporal Chain-of-Thought (CoT), capturing fine-grained physical and robotic dynamics that are often difficult to verbalize.** Specifically, we introduce a token-efficient latent CoT space that models future visual dynamics, 3D structural information, and robot proprioceptive states, and further extends these representations across time to enable temporally consistent implicit reasoning trajectories. Furthermore, LaST<sub>0</sub> adopts a dual-system architecture implemented via a Mixture-of-Transformers design, where a reasoning expert conducts low-frequency latent inference and an acting expert generates high-frequency actions conditioned on robotics-oriented latent representations. To facilitate coordination, LaST<sub>0</sub> is trained with heterogeneous operation frequencies, enabling adaptive switching during deployment.
 
 ## ✨ News ✨
@@ -119,7 +119,7 @@ bash train_wopc.sh
 
 ## 🔍Test in LIBERO
 
-![](assets/libero.png)
+![](asset/libero.png)
 
 We evaluated our LaST​<sub>0</sub>​ in [LIBERO](https://libero-project.github.io/main.html) and get the state-of-the-art performance.
 First, install the LIBERO denpendencies:
