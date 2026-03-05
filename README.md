@@ -79,7 +79,7 @@ bash test_rlbench.sh
 
 ## 💾 Data Construction
 
-We provide the processed LIBERO data in `.npy` format on [libero data]([https://huggingface.co/](https://huggingface.co/datasets/miniFranka/libero_npy)).
+We provide the processed LIBERO data in `.npy` format on [libero data](https://huggingface.co/datasets/miniFranka/libero_npy).
 
 Constructing the latent CoT data is very important for LaST​<sub>0</sub>, and we provide the preprocess scripts:
 
