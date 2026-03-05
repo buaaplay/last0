@@ -5,26 +5,32 @@ import os
 import re
 from scipy.spatial.transform import Rotation as R
 
-IMAGE_VIEWS_SAVE = ['image_third'] 
-IMAGE_VIEWS_SLOW = ['image_third'] 
-IMAGE_VIEWS_FAST = ['image_third'] 
+IMAGE_VIEWS_SAVE = ['image_primary', 'image_wrist'] 
+IMAGE_VIEWS_SLOW = ['image_primary'] 
+IMAGE_VIEWS_FAST = ['image_wrist'] 
 FUTURE_STEPS = 4
-FAST_SLOW_RATIO = 4
+FAST_SLOW_RATIO = 1
+LATENT_STRIDE = 8
+ACTION_CHUNK = 16
+
 
 def create_padding_assets(save_dir, sample_step):
     padding_info = {}
     
-    # 1. Create Black Images
     for view in IMAGE_VIEWS_SAVE:
         if view in sample_step:
-            img_shape = sample_step[view].shape # (H, W, C)
+            image_array = sample_step[view]
+            while image_array.ndim > 3:
+                image_array = image_array[0]
+
+            img_shape = image_array.shape
+
             black_img = np.zeros(img_shape, dtype=np.uint8)
             img_obj = Image.fromarray(black_img)
             save_path = f'{save_dir}/padding_black_{view}.png'
             img_obj.save(save_path)
             padding_info[f'image_{view}'] = save_path
 
-    # 3. Create Zero State
     if 'state' in sample_step:
         state_dim = len(sample_step['state'])
         padding_info['state'] = [0.0] * state_dim
@@ -58,10 +64,11 @@ def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
 
                     for i in range(episode_length):
                         step = episode[i]
-                        # Save Images
                         for view in IMAGE_VIEWS_SAVE:
                             if view in step:
                                 image_array = step[view]
+                                if image_array.ndim == 4:
+                                    image_array = image_array[0]
                                 image = Image.fromarray(image_array)
                                 image.save(f'{save_dir}/image{i}_{view}.png')
 
@@ -75,7 +82,7 @@ def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
                     image_fast_list = []
                     for view in IMAGE_VIEWS_FAST:
                         image_fast_list.append(f'{save_dir}/image{i}_{view}.png')
-                    
+
                     safe_slow_idx = min(slow_idx, episode_length - 1)
                     image_slow_list = []
                     for view in IMAGE_VIEWS_SLOW:
@@ -85,10 +92,9 @@ def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
                     output_state_list = []  # List: [T]
 
                     for k in range(1, FUTURE_STEPS + 1):
-                        tgt_idx = slow_idx + k
+                        tgt_idx = slow_idx + (k * LATENT_STRIDE)
                         
                         if tgt_idx < episode_length:
-                            # --- Real Data ---
                             tgt_step = episode[tgt_idx]
                             
                             # Images
@@ -96,7 +102,7 @@ def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
                                 output_images_list.append(f'{save_dir}/image{tgt_idx}_{view}.png')
                             
                             # State
-                            state_val = tgt_step['state'].copy() # Copy to avoid modifying original
+                            state_val = tgt_step['state'].copy() 
                             if isinstance(state_val, np.ndarray):
                                 state_val = state_val.tolist()
                             output_state_list.append(state_val)
@@ -104,14 +110,22 @@ def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
                         else:
                             for view in IMAGE_VIEWS_SLOW:
                                 output_images_list.append(padding_assets[f'image_{view}'])
+                            
                             output_state_list.append(padding_assets.get('state', []))
 
-                    # 5. Current Label Processing
-                    action_14d = step['action'].copy()
-                    
                     current_state = step['state'].copy()
-
-                    # 6. Construct Dictionary
+                    action_chunk_list = []
+                    
+                    for k in range(ACTION_CHUNK):
+                        future_idx = i + k
+                        if future_idx < episode_length:
+                            act = episode[future_idx]['action'].copy()
+                        else:
+                            act = episode[episode_length - 1]['action'].copy()
+                        if isinstance(act, np.ndarray):
+                            act = act.tolist()
+                        action_chunk_list.append(act)
+                    
                     episode_data = {
                         'input_images_fast': image_fast_list,
                         'input_images_slow': image_slow_list,
@@ -119,10 +133,9 @@ def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
                         'output_images': output_images_list, 
                         'output_state': output_state_list,
                         
-                        'action': action_14d.tolist(),
+                        'action': action_chunk_list,
                         'state': current_state.tolist(),
-                        # 'language_instruction': step['language_instruction'],
-                        'language_instruction': '- use the right arm to grab the button and place it in the box',
+                        'language_instruction': step['language_instruction'],
                     }
 
                     if 'language_subgoals' in step:
@@ -149,9 +162,7 @@ def jsonl_2_json(input_file, output_file):
             "input_image_slow": item["input_images_slow"],
             "input_image_slow_resolution": [384, 384],
             # --- Output (Latent) ---
-            # output_image 是 [T, Views] 的结构
             "output_image": item["output_images"], 
-            # Output Resolution: [T, Views, 2]
             "output_image_resolution": [384, 384],
             "output_state": item["output_state"],
             # --- Labels ---
@@ -183,6 +194,11 @@ def cal_stats(jsonl_filename):
     actions = np.array(actions)
     states = np.array(states)
 
+    if len(actions.shape) == 3:
+        actions_flat = actions.reshape(-1, actions.shape[-1])
+    else:
+        actions_flat = actions
+
     def calculate_stats(data, mask=None):
         if mask is None:
             mask = [True] * data.shape[1]
@@ -198,12 +214,10 @@ def cal_stats(jsonl_filename):
         }
         return stats
 
-    # action_mask = [True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, False]
-    # state_mask = [True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, False]
-    action_mask = [True] * 26
-    state_mask = [True] * 26
+    action_mask = [True, True, True, True, True, True, False]
+    state_mask = [True, True, True, True, True, True, False, False]
 
-    action_stats = calculate_stats(actions, action_mask)
+    action_stats = calculate_stats(actions_flat, action_mask)
     state_stats = calculate_stats(states, state_mask)
 
     result = {
@@ -224,17 +238,17 @@ def cal_stats(jsonl_filename):
 
 ######## ---------main---------- #########
 
-data_root = "/media/liuzhuoyang/data/tienkung/npy_key"
-img_save_root = "/media/liuzhuoyang/LCoT_VLA_MOT/training_data/tienkung_dual_sparse_fastslow"
-json_save_root = "/media/liuzhuoyang/LCoT_VLA_MOT/training_data/tienkung_dual_json"
+data_root = "/path/to/data/libero/npy"
+img_save_root = "/path/to/last0/training_data/libero_images"
+json_save_root = "/path/to/last0/training_data/libero_json"
 
-jsonl_filename = f'{json_save_root}/pick_button_dex_view1+1_chunk4_fast4_sparse_fastslow_train.jsonl'
-json_file = f'{json_save_root}/pick_button_dex_view1+1_chunk4_fast4_sparse_fastslow_train.json'
-
+jsonl_filename = f'{json_save_root}/libero_10_no_noops_view2_chunk4_16_stride8_fast1_sparse_fastslow_train.jsonl'
+json_file = f'{json_save_root}/libero_10_no_noops_view2_chunk4_16_stride8_fast1_sparse_fastslow_train.json'
 task_lists = [
-#   'tienkung_gripper_stack_bowls_0120',
-  'tienkung_dvt11_grasp_red_button_to_Parts_Material_Box'
-#   'tienkung_dexhand_open_white_solid_wood_drawers_0120',
+  'libero_10_no_noops',
+#   'libero_goal_no_noops',
+#   'libero_object_no_noops',
+#   'libero_spatial_no_noops'
 ]
 
 if not os.path.exists(json_save_root):

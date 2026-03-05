@@ -12,7 +12,7 @@ EXPERIMENT_NAME="your_experiment_name"
 OUTPUT_ROOT_DIR="../exp"
 
 DATA_JSON="/path/to/data.json"
-PRETRAIN_PATH="/path/to/pretrain_path"
+PRETRAIN_PATH="/path/to/Janus-Pro-1B"
 PRETRAIN_ACTION_PATH="/path/to/pretrain_action_path"
 PC_EMBEDDER_CKPT="/path/to/uni3d-b/model.pt"
 

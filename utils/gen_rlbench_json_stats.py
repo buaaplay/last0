@@ -5,25 +5,14 @@ import os
 import re
 from scipy.spatial.transform import Rotation as R
 
-def unique_euler_xyz_rad(angles, range_style="2pi"):
-    """
-    输入: 欧拉角 (xyz 顺序)，弧度制 (任意范围, 可正可负, 可超过 2π)
-    输出: 欧拉角 (xyz 顺序)，弧度制，严格唯一表示
+IMAGE_VIEWS = ['front_image'] 
+FUTURE_STEPS = 4
+FAST_SLOW_RATIO = 1
 
-    参数:
-        precision: 保留小数位数
-        range_style: "negpi" -> (-π, π], "2pi" -> [0, 2π)
-    """
-    # 输入是弧度
+def unique_euler_xyz_rad(angles, range_style="2pi"):
     rot = R.from_euler('xyz', angles, degrees=False)
-    
-    # 转回 xyz (弧度制)
     euler = rot.as_euler('xyz', degrees=False)
-    
-    # wrap 到 (-π, π]
     euler = (euler + np.pi) % (2 * np.pi) - np.pi
-    
-    # 约束: y ∈ [-π/2, π/2]
     if euler[1] > np.pi/2:
         euler[1] = np.pi - euler[1]
         euler[0] += np.pi
@@ -32,15 +21,36 @@ def unique_euler_xyz_rad(angles, range_style="2pi"):
         euler[1] = -np.pi - euler[1]
         euler[0] += np.pi
         euler[2] += np.pi
-    
-    # 再 wrap 一次
     euler = (euler + np.pi) % (2 * np.pi) - np.pi
-    
-    # 如果要求 [0, 2π)，再转换
     if range_style == "2pi":
         euler = euler % (2 * np.pi)
     
     return euler
+
+def create_padding_assets(save_dir, sample_step):
+    padding_info = {}
+
+    for view in IMAGE_VIEWS:
+        if view in sample_step:
+            img_shape = sample_step[view].shape 
+            black_img = np.zeros(img_shape, dtype=np.uint8)
+            img_obj = Image.fromarray(black_img)
+            save_path = f'{save_dir}/padding_black_{view}.png'
+            img_obj.save(save_path)
+            padding_info[f'image_{view}'] = save_path
+
+    if 'pointcloud' in sample_step:
+        pc_shape = sample_step['pointcloud'].shape
+        zero_pc = np.zeros(pc_shape, dtype=np.float32)
+        save_path = f'{save_dir}/padding_zero_pc.npy'
+        np.save(save_path, zero_pc)
+        padding_info['pc'] = save_path
+
+    if 'state' in sample_step:
+        state_dim = len(sample_step['state'])
+        padding_info['state'] = [0.0] * state_dim
+
+    return padding_info
 
 def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
     with open(jsonl_filename, 'w') as f:
@@ -49,7 +59,7 @@ def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
             print(f'Processing task: {task}')
 
             if not os.path.exists(f'{img_save_root}/{task}'):
-                os.mkdir(f'{img_save_root}/{task}')
+                os.makedirs(f'{img_save_root}/{task}', exist_ok=True)
 
             for file in os.listdir(f'{data_root}/{task}'):
                 if not file.endswith('.npy'): 
@@ -58,81 +68,94 @@ def npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists):
                 print('generating:', file, end=' ')
 
                 episode = np.load(f'{data_root}/{task}/{file}', allow_pickle=True)
-
-                file = file.replace('.npy', '')
+                file_base_name = file.replace('.npy', '')
                 episode_length = len(episode)
                 print('episode_length:', episode_length)
 
-                if not os.path.exists(f'{img_save_root}/{task}/{file}'):
-                    os.mkdir(f'{img_save_root}/{task}/{file}')
+                save_dir = f'{img_save_root}/{task}/{file_base_name}'
+                
+                if not os.path.exists(save_dir):
+                    os.makedirs(save_dir, exist_ok=True)
 
                     for i in range(episode_length):
                         step = episode[i]
-                        image_array = step['front_image']
-                        image = Image.fromarray(image_array)
-                        image.save(f'{img_save_root}/{task}/{file}/image{i}.png')
+                        for view in IMAGE_VIEWS:
+                            if view in step:
+                                image_array = step[view]
+                                image = Image.fromarray(image_array)
+                                image.save(f'{save_dir}/image{i}_{view}.png')
+                        if 'pointcloud' in step:
+                            pc_array = step['pointcloud']
+                            np.save(f'{save_dir}/pc{i}.npy', pc_array)
+                        else:
+                            print(f'Warning: No pointcloud found for {task} step {i}')
 
-                for i in range(episode_length-1):
+                padding_assets = create_padding_assets(save_dir, episode[0])
+
+                for i in range(episode_length):
                     step = episode[i]
-                    image_old = f'{img_save_root}/{task}/{file}/image{i}.png'
-                    image_new = f'{img_save_root}/{task}/{file}/image{i+1}.png'
 
-                    action = step['action']
-                    action_56d = step['action'] # action chunk of 8
-                    action_1 = action_56d[:7]  
-                    action_2 = action_56d[7:14]
-                    action_3 = action_56d[14:21]
-                    action_4 = action_56d[21:28]
-                    action_5 = action_56d[28:35]
-                    action_6 = action_56d[35:42]
-                    action_7 = action_56d[42:49]
-                    action_8 = action_56d[49:56]
+                    slow_idx = (i // FAST_SLOW_RATIO) * FAST_SLOW_RATIO
 
-                    delta_position_1 = action_1[:3]
-                    delta_position_2 = action_2[:3]
-                    delta_position_3 = action_3[:3]
-                    delta_position_4 = action_4[:3]
-                    delta_position_5 = action_5[:3]
-                    delta_position_6 = action_6[:3]
-                    delta_position_7 = action_7[:3]
-                    delta_position_8 = action_8[:3]
+                    image_fast_list = []
+                    for view in IMAGE_VIEWS:
+                        image_fast_list.append(f'{save_dir}/image{i}_{view}.png')
+
+                    safe_slow_idx = min(slow_idx, episode_length - 1)
+                    image_slow_list = []
+                    for view in IMAGE_VIEWS:
+                        image_slow_list.append(f'{save_dir}/image{safe_slow_idx}_{view}.png')
+
+                    pc_current = f'{save_dir}/pc{i}.npy'
                     
-                    abs_rot_1 = action_1[3:6]
-                    abs_rot_2 = action_2[3:6]
-                    abs_rot_3 = action_3[3:6]
-                    abs_rot_4 = action_4[3:6]
-                    abs_rot_5 = action_5[3:6]
-                    abs_rot_6 = action_6[3:6]
-                    abs_rot_7 = action_7[3:6]
-                    abs_rot_8 = action_8[3:6]
+                    output_images_list = [] # List of Lists: [T][View]
+                    output_pc_list = []     # List: [T]
+                    output_state_list = []  # List: [T]
 
-                    gripper_1 = action_1[-1]
-                    gripper_2 = action_2[-1]
-                    gripper_3 = action_3[-1]
-                    gripper_4 = action_4[-1]
-                    gripper_5 = action_5[-1]
-                    gripper_6 = action_6[-1]
-                    gripper_7 = action_7[-1]
-                    gripper_8 = action_8[-1]
-                    
-                    delta_position_total = delta_position_1 + delta_position_2 +\
-                        delta_position_3 + delta_position_4 + delta_position_5 + \
-                        delta_position_6 + delta_position_7 + delta_position_8       
-                    
-                    action_7d = np.concatenate([delta_position_total, abs_rot_8, [gripper_8]]).tolist()
+                    for k in range(1, FUTURE_STEPS + 1):
+                        tgt_idx = slow_idx + k
+                        
+                        if tgt_idx < episode_length:
+                            tgt_step = episode[tgt_idx]
+                            for view in IMAGE_VIEWS:
+                                output_images_list.append(f'{save_dir}/image{tgt_idx}_{view}.png')
+                            output_pc_list.append(f'{save_dir}/pc{tgt_idx}.npy')
+                            state_val = tgt_step['state'].copy() 
+                            if len(state_val) >= 6:
+                                state_val[3:6] = unique_euler_xyz_rad(state_val[3:6])
+                            if isinstance(state_val, np.ndarray):
+                                state_val = state_val.tolist()
+                            output_state_list.append(state_val)
+                            
+                        else:
+                            for view in IMAGE_VIEWS:
+                                output_images_list.append(padding_assets[f'image_{view}'])
+                            output_pc_list.append(padding_assets.get('pc', '')) 
+                            output_state_list.append(padding_assets.get('state', []))
 
+                    action_7d = step['action'].copy()
                     action_7d[3:6] = unique_euler_xyz_rad(action_7d[3:6])
-                    step['state'][3:6] = unique_euler_xyz_rad(step['state'][3:6])
+                    
+                    current_state = step['state'].copy()
+                    if len(current_state) >= 6:
+                         current_state[3:6] = unique_euler_xyz_rad(current_state[3:6])
 
-                    # Create dictionary for this step
                     episode_data = {
-                        'image_old': image_old,
-                        'image_new': image_new,
-                        'action': action_7d,
-                        'state': step['state'].tolist(),
+                        'input_images_fast': image_fast_list,
+                        'input_images_slow': image_slow_list,
+                        'input_pointcloud': pc_current,
+                        
+                        'output_images': output_images_list, 
+                        'output_pointcloud': output_pc_list,
+                        'output_state': output_state_list,
+                        
+                        'action': action_7d.tolist(),
+                        'state': current_state.tolist(),
                         'language_instruction': step['language_instruction'],
-                        'language_subgoals': step['language_subgoals']
                     }
+
+                    if 'language_subgoals' in step:
+                        episode_data['language_subgoals'] = step['language_subgoals']
 
                     f.write(json.dumps(episode_data) + '\n')
 
@@ -142,15 +165,26 @@ def jsonl_2_json(input_file, output_file):
         lines = f.readlines()
 
     output_data = []
+
     for line in lines:
         item = json.loads(line)
-        
+
         new_item = {
             "input_prompt": item["language_instruction"],
-            "input_image": [item["image_old"]],
-            "input_image_resolution": [384, 384],
-            "output_image": item["image_new"],
+            # --- Fast System ---
+            "input_image_fast": item["input_images_fast"],
+            "input_image_fast_resolution": [384, 384],
+            # --- Slow System ---
+            "input_image_slow": item["input_images_slow"],
+            "input_image_slow_resolution": [384, 384],
+            # --- Common Input ---
+            "input_pointcloud": [item["input_pointcloud"]],
+            # --- Output (Latent) ---
+            "output_image": item["output_images"], 
+            "output_pointcloud": item["output_pointcloud"],
             "output_image_resolution": [384, 384],
+            "output_state": item["output_state"],
+            # --- Labels ---
             "action": item["action"],
             "state": item["state"]
         }
@@ -172,8 +206,7 @@ def cal_stats(jsonl_filename):
             actions.append(data['action'])
             states.append(data['state'])
             
-            # 从image_old中提取episode编号
-            match = re.search(r'episode(\d+)', data['image_old'])
+            match = re.search(r'episode(\d+)', data['input_images_fast'][0])
             if match:
                 episode_numbers.add(int(match.group(1)))
 
@@ -206,7 +239,7 @@ def cal_stats(jsonl_filename):
             "action": action_stats,
             "state": state_stats,
             "num_transitions": len(actions),
-            "num_trajectories": max(episode_numbers) + 1  # episode编号从0开始
+            "num_trajectories": max(episode_numbers) + 1 if episode_numbers else 0
         }
     }
 
@@ -217,27 +250,32 @@ def cal_stats(jsonl_filename):
     print(f"Statistics have been saved to {output_path}")
 
 
-
 ######## ---------main---------- #########
 
-data_root = "/gpfs/0607-cluster/chenhao/data/rlbench/keyframe_fast_slow_chunk8_addlast_0806/for_rlds"
-img_save_root = "/gpfs/0607-cluster/chenhao/DoubleRL-VLA/training_data/rlbench"
-json_save_root = "/gpfs/0607-cluster/chenhao/DoubleRL-VLA/training_data/json"
-jsonl_filename = f'{json_save_root}/close_box_train.jsonl'
-json_file = f'{json_save_root}/close_box_train.json'
+data_root = "/path/to/data/rlbench/npy"
+img_save_root = "/path/to/last0/training_data/rlbench_images"
+json_save_root = "/path/to/last0/training_data/rlbench_json"
+
+jsonl_filename = f'{json_save_root}/12tasks_1view_chunk1_fast4_fastslow_train.jsonl'
+json_file = f'{json_save_root}/12tasks_1view_chunk1_fast4_fastslow_train.json'
 
 task_lists = [
   'close_box',
-#   'close_fridge',
-#   'close_laptop_lid',
-#   'phone_on_base',
-#   'place_wine_at_rack_location',
-#   'sweep_to_dustpan',
-#   'take_frame_off_hanger',
-#   'take_umbrella_out_of_umbrella_stand',
-#   'toilet_seat_down',
-#   'water_plants'
+  'close_fridge',
+  'close_laptop_lid',
+  'phone_on_base',
+  'place_wine_at_rack_location',
+  'sweep_to_dustpan',
+  'take_frame_off_hanger',
+  'take_umbrella_out_of_umbrella_stand',
+  'toilet_seat_down',
+  'water_plants',
+  'lamp_on',
+  'unplug_charger',
 ]
+
+if not os.path.exists(json_save_root):
+    os.makedirs(json_save_root, exist_ok=True)
 
 npy_2_jsonl(data_root, img_save_root, jsonl_filename, task_lists)
 cal_stats(jsonl_filename)
