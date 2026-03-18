@@ -69,7 +69,7 @@ We release our pretrained model's parameters on [hugging face](https://huggingfa
 For quick evaluation, download the released checkpoints and test on these scripts:
 
 ```bash
-# LIBERO (action_dim=7, action_chunk=16)
+# LIBERO (action_dim=7; action_chunk=8 for LIBERO_Spatial, action_chunk=16 for other 3 settings)
 bash experiments/test_libero.sh
 
 # RLBench (action_dim=7, action_chunk=1)
