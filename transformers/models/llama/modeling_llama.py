@@ -137,11 +137,11 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
 
 
 class LlamaMLP(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, intermediate_size=None):
         super().__init__()
         self.config = config
         self.hidden_size = config.hidden_size
-        self.intermediate_size = config.intermediate_size
+        self.intermediate_size = intermediate_size if intermediate_size is not None else config.intermediate_size
         self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=config.mlp_bias)
         self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=config.mlp_bias)
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=config.mlp_bias)
@@ -321,7 +321,8 @@ class LlamaDecoderLayer(GradientCheckpointingLayer):
         self.input_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
-        self.mlp_action = LlamaMLP(config)
+        action_intermediate_size = getattr(config, 'action_intermediate_size', config.intermediate_size)
+        self.mlp_action = LlamaMLP(config, intermediate_size=action_intermediate_size)
         self.input_layernorm_action = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm_action = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 

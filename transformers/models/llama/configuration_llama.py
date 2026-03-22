@@ -182,12 +182,14 @@ class LlamaConfig(PretrainedConfig):
         attention_dropout=0.0,
         mlp_bias=False,
         head_dim=None,
+        action_intermediate_size=None,
         **kwargs,
     ):
         self.vocab_size = vocab_size
         self.max_position_embeddings = max_position_embeddings
         self.hidden_size = hidden_size
         self.intermediate_size = intermediate_size
+        self.action_intermediate_size = action_intermediate_size if action_intermediate_size is not None else intermediate_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
 

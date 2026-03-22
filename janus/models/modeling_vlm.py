@@ -228,6 +228,7 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
                 use_pointcloud = False,
                 fast_and_slow = False,
                 fast_image_num = 1,
+                action_intermediate_size = None,
             ):
         super().__init__(config)
         self.flow = flow
@@ -267,6 +268,8 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
         language_config = config.language_config
         language_config.torch_dtype = torch.bfloat16
         language_config.bf16 = True
+        if action_intermediate_size is not None:
+            language_config.action_intermediate_size = action_intermediate_size
         self.language_model = LlamaForCausalLM(language_config)
 
         # make config like a llm config
