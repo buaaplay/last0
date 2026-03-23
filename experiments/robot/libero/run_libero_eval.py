@@ -136,7 +136,8 @@ def model_load(cfg: GenerateConfig):
     tokenizer = vl_chat_processor.tokenizer
     vl_gpt: MultiModalityCausalLM = AutoModelForCausalLM.from_pretrained(
         cfg.pretrained_checkpoint, trust_remote_code=True, torch_dtype=torch.bfloat16, use_latent = cfg.use_latent,
-        flow=True, action_dim=7, fast_and_slow=True, fast_image_num=1,
+        flow=True, action_dim=7, action_chunk=cfg.num_open_loop_steps,
+        fast_and_slow=True, fast_image_num=1,
     )
     action_tokenizer = ActionTokenizer(tokenizer)
 
