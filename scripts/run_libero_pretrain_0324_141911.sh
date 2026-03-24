@@ -8,6 +8,7 @@ OUTPUT_DIR="$ROOT_DIR/experiments/open_loop/libero/outputs/$RUN_TAG"
 
 TASK_SUITE_NAME="${1:-libero_spatial}"
 CUDA_ID="${2:-0}"
+UNNORM_KEY="oxe_pretrain"
 SOURCE_CKPT_DIR="/home/robot/zhy/last0/weights/Pretrain/tfmr"
 SOURCE_STATS_PATH="/home/robot/zhy/last0/weights/Pretrain/stats_data.json"
 LOCAL_CKPT_LINK="$ROOT_DIR/weights/Pretrain/tfmr"
@@ -48,10 +49,12 @@ echo "RUN_TAG=$RUN_TAG"
 echo "OUTPUT_DIR=$OUTPUT_DIR"
 echo "CKPT_LINK=$LOCAL_CKPT_LINK -> $SOURCE_CKPT_DIR"
 echo "STATS_LINK=$LOCAL_STATS_LINK -> $SOURCE_STATS_PATH"
+echo "UNNORM_KEY=$UNNORM_KEY"
 
 python experiments/robot/libero/run_libero_eval.py \
   --pretrained_checkpoint "$LOCAL_CKPT_LINK" \
   --task_suite_name "$TASK_SUITE_NAME" \
+  --unnorm_key "$UNNORM_KEY" \
   --cuda "$CUDA_ID" \
   --use_latent True \
   --latent_size 8 \
