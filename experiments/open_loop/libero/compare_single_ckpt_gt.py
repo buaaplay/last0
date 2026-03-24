@@ -38,6 +38,7 @@ def load_stats(stats_path, preferred_key):
         "action_mask": np.array(stats_data[key]["action"]["mask"]),
         "action_min": np.array(stats_data[key]["action"]["q01"]),
         "action_max": np.array(stats_data[key]["action"]["q99"]),
+        "action_dim": int(len(stats_data[key]["action"]["q01"])),
     }
     if "state" in stats_data[key]:
         statistic["state_mask"] = np.array(stats_data[key]["state"]["mask"])
@@ -65,6 +66,7 @@ def resolve_stats_path(source_root):
 
 
 def model_load(model_path, stats_path, cuda_id, horizon, latent_size, use_latent, preferred_key):
+    statistic, resolved_key = load_stats(stats_path, preferred_key)
     cfg = SimpleNamespace(
         cuda=str(cuda_id),
         num_open_loop_steps=horizon,
@@ -80,13 +82,12 @@ def model_load(model_path, stats_path, cuda_id, horizon, latent_size, use_latent
         torch_dtype=torch.bfloat16,
         use_latent=use_latent,
         flow=True,
-        action_dim=7,
+        action_dim=statistic["action_dim"],
         action_chunk=horizon,
         fast_and_slow=True,
         fast_image_num=1,
     )
     action_tokenizer = ActionTokenizer(tokenizer)
-    statistic, resolved_key = load_stats(stats_path, preferred_key)
     return cfg, vl_gpt, vl_chat_processor, action_tokenizer, statistic, resolved_key
 
 
@@ -108,10 +109,12 @@ def build_gt_chunk(episode, start_idx, horizon):
     return np.stack(actions, axis=0)
 
 
-def plot_chunk(gt_actions, pred_actions, query_idx, output_dir):
-    fig, axes = plt.subplots(7, 1, figsize=(12, 16), sharex=True)
+def plot_chunk(gt_actions, pred_actions, query_idx, output_dir, compare_dim):
+    fig, axes = plt.subplots(compare_dim, 1, figsize=(12, max(4, 2.2 * compare_dim)), sharex=True)
+    if compare_dim == 1:
+        axes = [axes]
     x = np.arange(gt_actions.shape[0])
-    for dim in range(7):
+    for dim in range(compare_dim):
         ax = axes[dim]
         ax.plot(x, gt_actions[:, dim], marker="o", label="GT")
         ax.plot(x, pred_actions[:, dim], marker="x", label="Pred")
@@ -179,7 +182,8 @@ def main():
             dtype=np.float32,
         )
         gt_actions = build_gt_chunk(episode, query_idx, args.horizon)
-        plot_chunk(gt_actions, pred_actions, query_idx, args.output_dir)
+        compare_dim = min(gt_actions.shape[1], pred_actions.shape[1])
+        plot_chunk(gt_actions, pred_actions[:, :compare_dim], query_idx, args.output_dir, compare_dim)
         results.append(
             {
                 "query_idx": query_idx,
@@ -206,6 +210,9 @@ def main():
         "horizon": args.horizon,
         "stride": args.stride,
         "num_queries": len(results),
+        "gt_action_dim": int(results[0]["gt_actions"].shape[1]) if results else None,
+        "pred_action_dim": int(results[0]["pred_actions"].shape[1]) if results else None,
+        "compared_action_dim": int(min(results[0]["gt_actions"].shape[1], results[0]["pred_actions"].shape[1])) if results else None,
     }
     with open(Path(args.output_dir) / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
