@@ -2,8 +2,15 @@ training_data
 exp
 exp_pretrain
 experiments/logs
+experiments/open_loop/libero/outputs
 LIBERO
 vis_results
 vis_scripts
 rollouts
 test_results
+!experiments/open_loop/
+!experiments/open_loop/libero/
+!experiments/open_loop/libero/README.md
+!experiments/open_loop/libero/run_pretrain_rollout.sh
+!experiments/open_loop/libero/outputs/
+!experiments/open_loop/libero/outputs/.gitkeep
