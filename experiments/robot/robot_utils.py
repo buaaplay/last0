@@ -76,6 +76,7 @@ def get_action(
     fast_img_len = 1
     slow_img_len = 1
     num_latent_tokens = cfg.latent_size
+    action_dim = int(len(statistic["action_max"]))
     
     state_tokens = ""
     if cfg.use_proprio:
@@ -180,7 +181,7 @@ def get_action(
                 ]
             )
 
-        noise = torch.randn(inputs_embeds.shape[0], cfg.num_open_loop_steps, 7, device=device)
+        noise = torch.randn(inputs_embeds.shape[0], cfg.num_open_loop_steps, action_dim, device=device)
         samples = vl_gpt.forward_flow(inputs_embeds, noise)
         
         normalized_actions = samples[0].cpu().numpy()
