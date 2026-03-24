@@ -10,6 +10,11 @@ TASK_SUITE_NAME="${1:-libero_spatial}"
 CUDA_ID="${2:-0}"
 SOURCE_CKPT_DIR="/home/robot/zhy/last0/weights/Pretrain/tfmr"
 LOCAL_CKPT_LINK="$ROOT_DIR/weights/Pretrain/tfmr"
+LIBERO_CANDIDATES=(
+  "/Disk1/zhy/last0/LIBERO"
+  "/home/robot/zhy/last0/LIBERO"
+  "$ROOT_DIR/LIBERO"
+)
 
 mkdir -p "$ROOT_DIR/weights/Pretrain"
 mkdir -p "$OUTPUT_DIR/logs"
@@ -21,6 +26,13 @@ fi
 ln -s "$SOURCE_CKPT_DIR" "$LOCAL_CKPT_LINK"
 
 cd "$ROOT_DIR"
+for libero_dir in "${LIBERO_CANDIDATES[@]}"; do
+  if [[ -d "$libero_dir" ]]; then
+    export PYTHONPATH="$libero_dir:${PYTHONPATH:-}"
+    echo "LIBERO_ROOT=$libero_dir"
+    break
+  fi
+done
 export PYTHONPATH="$ROOT_DIR:$ROOT_DIR/transformers:${PYTHONPATH:-}"
 export LAST0_OUTPUT_DIR="$OUTPUT_DIR"
 export LAST0_RUN_TAG="$RUN_TAG"
