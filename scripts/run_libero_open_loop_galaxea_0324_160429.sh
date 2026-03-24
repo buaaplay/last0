@@ -8,7 +8,7 @@ OUTPUT_DIR="$ROOT_DIR/experiments/open_loop/libero/outputs/$RUN_TAG"
 
 TASK_SUITE_NAME="${1:-libero_spatial}"
 CUDA_ID="${2:-0}"
-EPISODE_PATH="${3:-/home/robot/zhy/last0/datasets/libero_spatial_no_noops/episode_0.npy}"
+EPISODE_PATH="${3:-/home/robot/zhy/last0/datasets/libero_spatial_no_noops}"
 MODEL_ROOT="${4:-/home/robot/zhy/last0/exp/libero_spatial_test1/libero_spatial/checkpoint-41-276906}"
 HORIZON="${5:-16}"
 STRIDE="${6:-16}"

@@ -65,6 +65,18 @@ def resolve_stats_path(source_root):
     raise FileNotFoundError(f"Could not find stats_data.json near {source_root}")
 
 
+def resolve_episode_path(path_like):
+    path = Path(path_like)
+    if path.is_file():
+        return path
+    if path.is_dir():
+        candidates = sorted(path.glob("episode_*.npy"))
+        if not candidates:
+            raise FileNotFoundError(f"No episode_*.npy files found under {path}")
+        return candidates[0]
+    raise FileNotFoundError(f"Episode path does not exist: {path_like}")
+
+
 def model_load(model_path, stats_path, cuda_id, horizon, latent_size, use_latent, preferred_key):
     statistic, resolved_key = load_stats(stats_path, preferred_key)
     cfg = SimpleNamespace(
@@ -145,6 +157,7 @@ def main():
 
     model_dir = resolve_model_dir(args.model_root)
     stats_path = resolve_stats_path(args.model_root)
+    episode_path = resolve_episode_path(args.episode_path)
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     cfg, model, processor, action_tokenizer, statistic, unnorm_key = model_load(
@@ -157,7 +170,7 @@ def main():
         args.task_suite_name,
     )
 
-    episode = np.load(args.episode_path, allow_pickle=True)
+    episode = np.load(episode_path, allow_pickle=True)
     if args.episode_limit > 0:
         episode = episode[: args.episode_limit]
 
@@ -201,6 +214,7 @@ def main():
 
     metadata = {
         "episode_path": args.episode_path,
+        "resolved_episode_path": str(episode_path),
         "task_description": task_description,
         "model_root": args.model_root,
         "model_dir": str(model_dir),
