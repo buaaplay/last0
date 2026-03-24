@@ -4,7 +4,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_TAG="$(date '+%m%d_%H%M%S')"
-OUTPUT_DIR="$ROOT_DIR/experiments/open_loop/libero/outputs/$RUN_TAG"
 
 CUDA_ID="${1:-0}"
 EPISODE_ID="${2:-0}"
@@ -12,6 +11,10 @@ JSONL_PATH="${3:-/home/robot/play/galaxea_tools_outputs/20260320_145013_convert_
 MODEL_ROOT="${4:-/home/robot/zhy/last0/exp/libero_spatial_test1/libero_spatial/checkpoint-41-276906}"
 HORIZON="${5:-16}"
 STRIDE="${6:-16}"
+
+DATA_TAG="$(basename "$JSONL_PATH" .jsonl)"
+MODEL_TAG="$(basename "$MODEL_ROOT")"
+OUTPUT_DIR="$ROOT_DIR/experiments/open_loop/libero/outputs/${RUN_TAG}__${DATA_TAG}__${MODEL_TAG}__ep${EPISODE_ID}__h${HORIZON}__s${STRIDE}"
 
 cd "$ROOT_DIR"
 mkdir -p "$OUTPUT_DIR"

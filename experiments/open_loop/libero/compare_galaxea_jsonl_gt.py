@@ -109,7 +109,7 @@ def load_image_list(paths):
     return [Image.open(path).convert("RGB") for path in paths]
 
 
-def plot_chunk(gt_actions, pred_actions, query_idx, output_dir):
+def plot_chunk(gt_actions, pred_actions, query_idx, output_dir, shared_non_gripper_limit):
     compare_dim = gt_actions.shape[1]
     fig, axes = plt.subplots(compare_dim, 1, figsize=(12, max(5, 2.0 * compare_dim)), sharex=True)
     if compare_dim == 1:
@@ -121,6 +121,10 @@ def plot_chunk(gt_actions, pred_actions, query_idx, output_dir):
         ax.plot(x, pred_actions[:, dim], marker="x", label="Pred")
         ax.set_ylabel(f"a{dim}")
         ax.grid(True, alpha=0.3)
+        if dim in (6, 13):
+            ax.set_ylim(-0.1, 1.1)
+        else:
+            ax.set_ylim(-shared_non_gripper_limit, shared_non_gripper_limit)
         if dim == 0:
             ax.legend()
     axes[-1].set_xlabel("Horizon Step (0-based)")
@@ -158,6 +162,16 @@ def main():
     )
 
     query_indices = list(range(0, len(episode_items), args.stride))
+    all_gt = np.stack([np.asarray(item["action"], dtype=np.float32) for item in episode_items], axis=0)
+    non_gripper_dims = [dim for dim in range(all_gt.shape[-1]) if dim not in (6, 13)]
+    if non_gripper_dims:
+        shared_non_gripper_limit = float(
+            np.max(np.abs(all_gt[:, :, non_gripper_dims]))
+        )
+    else:
+        shared_non_gripper_limit = float(np.max(np.abs(all_gt)))
+    shared_non_gripper_limit = max(shared_non_gripper_limit * 1.05, 1e-3)
+
     results = []
     for query_idx in query_indices:
         item = episode_items[query_idx]
@@ -177,7 +191,11 @@ def main():
             dtype=np.float32,
         )
         gt_actions = np.asarray(item["action"], dtype=np.float32)
-        plot_chunk(gt_actions, pred_actions, query_idx, args.output_dir)
+        pred_non_gripper = [dim for dim in range(pred_actions.shape[1]) if dim not in (6, 13)]
+        if pred_non_gripper:
+            pred_limit = float(np.max(np.abs(pred_actions[:, pred_non_gripper])))
+            shared_non_gripper_limit = max(shared_non_gripper_limit, pred_limit * 1.05)
+        plot_chunk(gt_actions, pred_actions, query_idx, args.output_dir, shared_non_gripper_limit)
         results.append(
             {
                 "query_idx": query_idx,
@@ -206,6 +224,7 @@ def main():
         "action_dim": int(results[0]["gt_actions"].shape[1]) if results else None,
         "task_description": episode_items[0]["input_prompt"] if episode_items else None,
         "fast_image_num": sample_fast_count,
+        "shared_non_gripper_ylim": shared_non_gripper_limit,
     }
     with open(Path(args.output_dir) / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
