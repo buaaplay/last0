@@ -8,7 +8,7 @@ OUTPUT_DIR="$ROOT_DIR/experiments/open_loop/libero/outputs/$RUN_TAG"
 
 CUDA_ID="${1:-0}"
 EPISODE_ID="${2:-0}"
-JSONL_PATH="${3:-/home/robot/play/MyDataset/20260323_173241_last0_20260127/train.jsonl}"
+JSONL_PATH="${3:-/home/robot/play/MyDataset/20260323_173241_last0_20260127/galaxea_json/20260127_last0_train.jsonl}"
 MODEL_ROOT="${4:-/home/robot/zhy/last0/exp_0127/libero_spatial_test1/libero_spatial/checkpoint-19-121280}"
 HORIZON="${5:-16}"
 STRIDE="${6:-16}"
