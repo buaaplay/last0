@@ -150,9 +150,15 @@ def model_load(cfg: GenerateConfig):
     statistic['action_mask'] = np.array(stats_data[dataset_name]['action']['mask'])
     statistic['action_min'] = np.array(stats_data[dataset_name]['action']['q01'])
     statistic['action_max'] = np.array(stats_data[dataset_name]['action']['q99'])
-    statistic['state_mask'] = np.array(stats_data[dataset_name]['state']['mask'])
-    statistic['state_min'] = np.array(stats_data[dataset_name]['state']['q01'])
-    statistic['state_max'] = np.array(stats_data[dataset_name]['state']['q99'])
+    if cfg.use_proprio:
+        if 'state' not in stats_data[dataset_name]:
+            raise KeyError(
+                f"stats_data.json entry '{dataset_name}' does not contain 'state', "
+                "but use_proprio=True requires state normalization stats."
+            )
+        statistic['state_mask'] = np.array(stats_data[dataset_name]['state']['mask'])
+        statistic['state_min'] = np.array(stats_data[dataset_name]['state']['q01'])
+        statistic['state_max'] = np.array(stats_data[dataset_name]['state']['q99'])
 
     return vl_gpt, vl_chat_processor, action_tokenizer, statistic
 
