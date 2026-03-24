@@ -1,0 +1,3 @@
+cd /home/robot/play/last0
+bash scripts/pull_origin_main.sh
+bash scripts/run_libero_pretrain_0324_141911.sh

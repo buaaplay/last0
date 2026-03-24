@@ -6,8 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REMOTE_NAME="${1:-origin}"
 BRANCH_NAME="${2:-main}"
 
-if [[ -n "$(git -C "$ROOT_DIR" status --porcelain)" ]]; then
-  echo "Refusing to pull: repository has uncommitted changes."
+if ! git -C "$ROOT_DIR" diff --quiet || ! git -C "$ROOT_DIR" diff --cached --quiet; then
+  echo "Refusing to pull: repository has tracked changes."
   git -C "$ROOT_DIR" status --short
   exit 1
 fi
