@@ -484,9 +484,23 @@ def train(args: argparse.Namespace) -> None:
     metric = TrainingMetrics(device=torch.cuda.current_device())
     model.train()
     global_step = 0
+    accelerator.print(f"Train dataloader batches per epoch: {len(train_dataloader)}")
+    accelerator.print(f"Estimated optimizer steps: {num_training_steps}")
 
     for epoch in range(0, args.n_epochs):
-        train_iter = tqdm(train_dataloader, total=len(train_dataloader)) if accelerator.is_main_process else train_dataloader
+        accelerator.print(f"Starting epoch {epoch + 1}/{args.n_epochs}")
+        train_iter = (
+            tqdm(
+                train_dataloader,
+                total=len(train_dataloader),
+                desc=f"Epoch {epoch + 1}/{args.n_epochs}",
+                dynamic_ncols=True,
+                mininterval=1.0,
+                leave=True,
+            )
+            if accelerator.is_main_process
+            else train_dataloader
+        )
         for batch in train_iter:
             inputs_embeds = model.prepare_inputs_embeds(
                     input_ids=batch['input_ids'],
@@ -750,4 +764,3 @@ if __name__ == '__main__':
 
     # Start training
     train(args)     
-
