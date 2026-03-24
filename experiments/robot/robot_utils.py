@@ -73,8 +73,8 @@ def get_action(
     device = f'cuda:{cfg.cuda}'
     vl_gpt = vl_gpt.to(device).eval()
     parallel_size= 1
-    fast_img_len = 1
-    slow_img_len = 1
+    fast_img_len = len(fast_image) if fast_image is not None else 0
+    slow_img_len = len(slow_image) if slow_image is not None else 0
     num_latent_tokens = cfg.latent_size
     action_dim = int(len(statistic["action_max"]))
     
