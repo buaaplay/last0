@@ -3,6 +3,8 @@ exp
 exp_pretrain
 experiments/logs
 experiments/open_loop/libero/outputs
+__pycache__/
+*.pyc
 LIBERO
 vis_results
 vis_scripts
