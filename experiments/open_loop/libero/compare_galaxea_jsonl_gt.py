@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image
+from tqdm import tqdm
 from transformers import AutoModelForCausalLM
 
 from experiments.robot.robot_utils import get_action
@@ -109,26 +110,33 @@ def load_image_list(paths):
     return [Image.open(path).convert("RGB") for path in paths]
 
 
-def plot_chunk(gt_actions, pred_actions, query_idx, output_dir, shared_non_gripper_limit):
+def normalize_chunk_for_plot(gt_actions, pred_actions):
+    mins = np.minimum(gt_actions.min(axis=0), pred_actions.min(axis=0))
+    maxs = np.maximum(gt_actions.max(axis=0), pred_actions.max(axis=0))
+    spans = np.maximum(maxs - mins, 1e-6)
+    gt_norm = (gt_actions - mins) / spans
+    pred_norm = (pred_actions - mins) / spans
+    return gt_norm, pred_norm, mins, maxs
+
+
+def plot_chunk(gt_actions, pred_actions, query_idx, output_dir):
     compare_dim = gt_actions.shape[1]
+    gt_norm, pred_norm, mins, maxs = normalize_chunk_for_plot(gt_actions, pred_actions)
     fig, axes = plt.subplots(compare_dim, 1, figsize=(12, max(5, 2.0 * compare_dim)), sharex=True)
     if compare_dim == 1:
         axes = [axes]
     x = np.arange(gt_actions.shape[0])
     for dim in range(compare_dim):
         ax = axes[dim]
-        ax.plot(x, gt_actions[:, dim], marker="o", label="GT")
-        ax.plot(x, pred_actions[:, dim], marker="x", label="Pred")
-        ax.set_ylabel(f"a{dim}")
+        ax.plot(x, gt_norm[:, dim], marker="o", label="GT")
+        ax.plot(x, pred_norm[:, dim], marker="x", label="Pred")
+        ax.set_ylabel(f"a{dim}\n[{mins[dim]:.3f}, {maxs[dim]:.3f}]")
         ax.grid(True, alpha=0.3)
-        if dim in (6, 13):
-            ax.set_ylim(-0.1, 1.1)
-        else:
-            ax.set_ylim(-shared_non_gripper_limit, shared_non_gripper_limit)
+        ax.set_ylim(-0.05, 1.05)
         if dim == 0:
             ax.legend()
     axes[-1].set_xlabel("Horizon Step (0-based)")
-    fig.suptitle(f"Galaxea open-loop chunk at query step {query_idx}")
+    fig.suptitle(f"Galaxea open-loop chunk at query step {query_idx} (per-dim min-max normalized)")
     fig.tight_layout()
     fig.savefig(Path(output_dir) / f"query_{query_idx:04d}.png", dpi=200)
     plt.close(fig)
@@ -162,19 +170,16 @@ def main():
     )
 
     query_indices = list(range(0, len(episode_items), args.stride))
-    all_gt = np.stack([np.asarray(item["action"], dtype=np.float32) for item in episode_items], axis=0)
-    non_gripper_dims = [dim for dim in range(all_gt.shape[-1]) if dim not in (6, 13)]
-    if non_gripper_dims:
-        shared_non_gripper_limit = float(
-            np.max(np.abs(all_gt[:, :, non_gripper_dims]))
-        )
-    else:
-        shared_non_gripper_limit = float(np.max(np.abs(all_gt)))
-    shared_non_gripper_limit = max(shared_non_gripper_limit * 1.05, 1e-3)
-
     results = []
-    for query_idx in query_indices:
+    total_queries = len(query_indices)
+    progress_bar = tqdm(query_indices, desc="Open-loop queries", unit="query")
+    for query_count, query_idx in enumerate(progress_bar, start=1):
         item = episode_items[query_idx]
+        print(
+            f"[{query_count}/{total_queries}] query_step={query_idx} "
+            f"horizon={args.horizon} dim={len(item['action'][0])}",
+            flush=True,
+        )
         slow_images = load_image_list(item["input_image_slow"])
         fast_images = load_image_list(item["input_image_fast"])
         pred_actions = np.asarray(
@@ -191,11 +196,8 @@ def main():
             dtype=np.float32,
         )
         gt_actions = np.asarray(item["action"], dtype=np.float32)
-        pred_non_gripper = [dim for dim in range(pred_actions.shape[1]) if dim not in (6, 13)]
-        if pred_non_gripper:
-            pred_limit = float(np.max(np.abs(pred_actions[:, pred_non_gripper])))
-            shared_non_gripper_limit = max(shared_non_gripper_limit, pred_limit * 1.05)
-        plot_chunk(gt_actions, pred_actions, query_idx, args.output_dir, shared_non_gripper_limit)
+        progress_bar.set_postfix(query_step=query_idx, saved_png=f"query_{query_idx:04d}.png")
+        plot_chunk(gt_actions, pred_actions, query_idx, args.output_dir)
         results.append(
             {
                 "query_idx": query_idx,
@@ -224,7 +226,7 @@ def main():
         "action_dim": int(results[0]["gt_actions"].shape[1]) if results else None,
         "task_description": episode_items[0]["input_prompt"] if episode_items else None,
         "fast_image_num": sample_fast_count,
-        "shared_non_gripper_ylim": shared_non_gripper_limit,
+        "plot_normalization": "per_query_per_dim_min_max_over_gt_and_pred",
     }
     with open(Path(args.output_dir) / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
