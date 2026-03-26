@@ -109,23 +109,7 @@ def load_image_list(paths):
     return [Image.open(path).convert("RGB") for path in paths]
 
 
-def compute_shared_ylim(all_gt_chunks, all_pred_chunks):
-    non_gripper_dims = [dim for dim in range(all_gt_chunks.shape[-1]) if dim not in (6, 13)]
-    if not non_gripper_dims:
-        return 1.0
-    mins = np.minimum(
-        np.min(all_gt_chunks[:, :, non_gripper_dims], axis=(0, 1)),
-        np.min(all_pred_chunks[:, :, non_gripper_dims], axis=(0, 1)),
-    )
-    maxs = np.maximum(
-        np.max(all_gt_chunks[:, :, non_gripper_dims], axis=(0, 1)),
-        np.max(all_pred_chunks[:, :, non_gripper_dims], axis=(0, 1)),
-    )
-    spans = maxs - mins
-    return max(float(np.max(spans)) * 0.55, 1e-3)
-
-
-def plot_chunk(gt_actions, pred_actions, query_idx, output_dir, model_alias, shared_half_span):
+def plot_chunk(gt_actions, pred_actions, query_idx, output_dir, model_alias):
     action_dim = gt_actions.shape[1]
     fig, axes = plt.subplots(action_dim, 1, figsize=(12, max(6, 2.1 * action_dim)), sharex=True)
     if action_dim == 1:
@@ -137,18 +121,17 @@ def plot_chunk(gt_actions, pred_actions, query_idx, output_dir, model_alias, sha
         ax.plot(x, pred_actions[:, dim], marker="x", label="Pred", linewidth=1.5)
         ax.set_ylabel(f"a{dim}")
         ax.grid(True, alpha=0.3)
-        if dim in (6, 13):
-            ax.set_ylim(-0.1, 1.1)
-        else:
-            center = 0.5 * (
-                min(gt_actions[:, dim].min(), pred_actions[:, dim].min())
-                + max(gt_actions[:, dim].max(), pred_actions[:, dim].max())
-            )
-            ax.set_ylim(center - shared_half_span, center + shared_half_span)
+        ymin = min(gt_actions[:, dim].min(), pred_actions[:, dim].min())
+        ymax = max(gt_actions[:, dim].max(), pred_actions[:, dim].max())
+        if np.isclose(ymin, ymax):
+            pad = max(abs(ymin) * 0.05, 1e-4)
+            ymin -= pad
+            ymax += pad
+        ax.set_ylim(ymin, ymax)
         if dim == 0:
             ax.legend()
     axes[-1].set_xlabel("Horizon Step (0-based)")
-    fig.suptitle(f"{model_alias} | query step {query_idx} | raw values")
+    fig.suptitle(f"{model_alias} | query step {query_idx} | raw per-dim min/max")
     fig.tight_layout()
     fig.savefig(Path(output_dir) / f"query_{query_idx:04d}.png", dpi=200)
     plt.close(fig)
@@ -211,10 +194,6 @@ def main():
             }
         )
 
-    all_gt = np.stack([r["gt_actions"] for r in results], axis=0)
-    all_pred = np.stack([r["pred_actions"] for r in results], axis=0)
-    shared_half_span = compute_shared_ylim(all_gt, all_pred)
-
     per_query_mae = []
     for item in results:
         plot_chunk(
@@ -223,9 +202,11 @@ def main():
             item["query_idx"],
             args.output_dir,
             args.model_alias,
-            shared_half_span,
         )
         per_query_mae.append(np.mean(np.abs(item["gt_actions"] - item["pred_actions"]), axis=0))
+
+    all_gt = np.stack([r["gt_actions"] for r in results], axis=0)
+    all_pred = np.stack([r["pred_actions"] for r in results], axis=0)
 
     np.savez(
         Path(args.output_dir) / "open_loop_chunks.npz",
@@ -250,8 +231,7 @@ def main():
         "action_dim": int(all_gt.shape[-1]),
         "task_description": episode_items[0]["input_prompt"],
         "fast_image_num": sample_fast_count,
-        "plot_mode": "raw_values_with_shared_non_gripper_span",
-        "shared_non_gripper_half_span": shared_half_span,
+        "plot_mode": "raw_values_with_per_query_per_dim_min_max",
         "mean_abs_error_per_dim": mean_abs_error.tolist(),
     }
 
